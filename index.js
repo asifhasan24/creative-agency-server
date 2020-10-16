@@ -33,12 +33,13 @@ client.connect(err => {
     const makeAdmin = client.db("creative-agency").collection("works");
 
     app.post('/addAppointment', (req, res) => {
-        const all = req.body
-        appointmentCollection.insertOne(all)
-            .then(result => {
-                res.send(result.insertedCount > 0);
-            })
-    })
+      const all = req.body
+      appointmentCollection.insertOne(all)
+          .then(result => {
+              res.send(result.insertedCount > 0);
+          })
+  })
+
     app.post('/makeadmin', (req, res) => {
         const allAdmin = req.body
         makeAdmin.insertOne(allAdmin)
@@ -52,6 +53,14 @@ client.connect(err => {
         addServiceCollection.find({_id:ObjectID(id)})
         .toArray((err,document)=>{
           res.send(document[0])
+        })  
+       })
+
+       app.post('/admin',(req,res)=>{
+        const email= req.body.email
+        makeAdmin.find({email :email} )
+        .toArray((err,document)=>{
+          res.send(document.length>0)
         })  
        })
 
