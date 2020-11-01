@@ -1,218 +1,124 @@
-
-const express = require('express');
-const MongoClient = require('mongodb').MongoClient;
-const cors = require('cors');
-const fs = require('fs-extra');
+const express = require('express')
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const fs = require('fs-extra')
 const fileUpload = require('express-fileupload');
-const ObjectId = require('mongodb').ObjectId
+const { ObjectID } = require('mongodb');
+const MongoClient = require('mongodb').MongoClient;
 require('dotenv').config()
-
-
-const app = express();
-
-
-app.use(cors());
-app.use(bodyParser.urlencoded({
-  extended: true
-}));
-app.use(bodyParser.json());
-app.use(express.static('images'));
-app.use(fileUpload());
-
-
-
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.gbfwa.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`;
-const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+const app = express()
+
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(cors());
+app.use(express.static('service'));
+app.use(express.static('reviews'));
+app.use(fileUpload());
+const client = new MongoClient(uri, {
+  useNewUrlParser: true, useUnifiedTopology:
+    true
+});
 client.connect(err => {
-  const services = client.db("creative-agency").collection("records");
-  const reviews = client.db("creative-agency").collection("addService");
-  const orders = client.db("creative-agency").collection("review");
-  const admins = client.db("creative-agency").collection("works");;
-
-  app.post('/addASerivceImg', (req, res) => {
+  const serviceCollection = client.db("agency").collection("services");
+  const reviewCollection = client.db("agency").collection("reviews");
+  const ordersCollection = client.db("agency").collection("orders");
+  const adminCollection = client.db("agency").collection("admins");
+  app.post('/addServices', (req, res) => {
     const file = req.files.file;
-    const name = req.body.name;
-    const imgName = file.name;
+    const title = req.body.title;
     const description = req.body.description;
-    const serviceInfo = {
-      servImg: imgName,
-      servName: name,
-      servDescription: description
-    }
-    const filePath = `${__dirname}/images/${file.name}`;
-
-    file.mv(filePath, err => {
-      if (err) {
-        console.log(err)
-        return res.status(500, send({ msg: 'failed to uplaod inmage to serber' }))
-      } else {
-        const newImg = fs.readFileSync(filePath);
-        const encImg = newImg.toString('base64');
-        var image = {
-          contentType: req.files.file.mimetype,
-          size: req.files.file.size,
-          img: Buffer.from(encImg, 'base64')
-        }
-    
-        return res.send({ name: file.name, path: `/${file.name}` });
-      }
-    })
-  })
-
-  app.get('/allServices', (req, res) => {
-    services.find({})
-      .toArray((err, documents) => {
-        res.send(documents)
+    const newImg = file.data;
+    const enImg = newImg.toString('base64');
+    var image = {
+      contentType: req.files.file.mimetype,
+      size: req.files.file.size,
+      img: Buffer.from(enImg, 'base64')
+    };
+    serviceCollection.insertOne({ title, description, image })
+      .then(result => {
+        res.send(result.insertedCount > 0);
       })
   })
-
+  app.get('/services', (req, res) => {
+    serviceCollection.find({})
+      .toArray((err, document) => {
+        res.send(document)
+      })
+  })
   app.post('/addReview', (req, res) => {
     const file = req.files.file;
-    const review = {
-      reviewer: req.body.reviewer,
-      designation: req.body.designation,
-      feedback: req.body.feedback,
-      reviewerImg: file.name
-    }
-    file.mv(`${__dirname}/images/${file.name}`, err => {
-      if (err) {
-        console.log(err);
-        return res.status(500, send({ msg: 'Failed to upload image to the server' }))
-      } else {
-        reviews.insertOne(review)
-          .then((results) => {
-            console.log(results)
-          })
-        return res.send({ name: file.name, path: `/${file.name}` })
-      }
-    })
-  })
-
-  app.get('/allReviews', (req, res) => {
-    reviews.find({})
-      .toArray((err, documents) => {
-        res.send(documents)
+    const name = req.body.name;
+    const description = req.body.description;
+    const designation = req.body.designation;
+    const newImg = file.data;
+    const enImg = newImg.toString('base64');
+    var image = {
+      contentType: req.files.file.mimetype,
+      size: req.files.file.size,
+      img: Buffer.from(enImg, 'base64')
+    };
+    reviewCollection.insertOne({ name, description, designation, image })
+      .then(result => {
+        res.send(result.insertedCount > 0);
       })
   })
-
-  app.get('/userPanel/orders/:serviceId', (req, res) => {
-   
-    console.log(req.params.serviceId)
-
-    services.find({
-      _id: ObjectId(req.params.serviceId)
-    })
-      .toArray((err, documents) => {
-        res.send(documents[0])
+  app.get('/services/:id', (req, res) => {
+    const id = req.params.id;
+    serviceCollection.find({ _id: ObjectID(id) })
+      .toArray((err, document) => {
+        res.send(document[0])
+        console.log(document[0])
       })
-
   })
-
-
-  app.post('/placeOrder', (req, res) => {
-    const orderInfo = req.body;
-    orders.insertOne(orderInfo)
+  app.post('/Addorders', (req, res) => {
+    const order = req.body;
+    ordersCollection.insertOne(order)
       .then(result => {
         res.send(result.insertedCount > 0)
       })
   })
-
-
-  app.get('/orders/:email', (req, res) => {
-    const loggedInUser = req.params.email;
-    orders.find({ email: loggedInUser })
-      .toArray((err, documents) => {
-        res.send(documents)
+  app.get('/orders', (req, res) => {
+    ordersCollection.find({ email: req.query.email })
+      .toArray((err, document) => {
+        res.send(document)
       })
-
   })
-
-
-  app.patch('/updateStatus/:id', (req, res) => {
-    const id = req.params.id;
-    console.log(id)
-    console.log(req.body.updatedStatus)
-    orders.updateOne(
-      { _id: ObjectId(id) },
-      { $set: { status: req.body.updatedStatus } }
+  app.get('/orderList', (req, res) => {
+    ordersCollection.find({})
+      .toArray((err, document) => {
+        res.send(document)
+      })
+  })
+  app.post('/addAdmin', (req, res) => {
+    const email = req.body.email;
+    adminCollection.insertOne({ email })
+      .then(result => {
+        res.send(result.insertedCount > 0)
+      })
+  })
+  app.get('/admins', (req, res) => {
+    adminCollection.find({})
+      .toArray((err, document) => {
+        res.send(document)
+      })
+  })
+  app.get('/reviews', (req, res) => {
+    reviewCollection.find({})
+      .toArray((err, document) => {
+        res.send(document)
+      })
+  })
+  app.patch("/update/:id", (req, res) => {
+    console.log(req.params.id)
+    ordersCollection.updateOne({ _id: (req.params.id) },
+      {
+        $set: { status: req.body.status }
+      }
     )
       .then(result => {
         console.log(result)
       })
   })
-
-
-  app.post('/addUserReview', (req, res) => {
-    const review = req.body;
-    console.log(review)
-    reviews.insertOne(review)
-      .then(result => {
-        res.send(result.insertedCount > 0)
-      })
-  })
-
-
-  app.post('/addService', (req, res) => {
-    const file = req.files.file;
-    const service = {
-      servName: req.body.servName,
-      servDescription: req.body.servDescription
-    }
-  
-        const newImg = req.files.file.data;
-        const encImg = newImg.toString('base64');
-        var image = {
-          contentType: file.mimetype,
-          size: file.size,
-          img: Buffer.from(encImg, 'base64')
-        }
-        service.image = image;
-        console.log(service)
-        services.insertOne(service)
-          .then(result => {
-         
-              res.send(result.insertedCount > 0)
-           
-          })
-      
-   
-  })
- 
-  app.get('/allOrders', (req, res) => {
-    orders.find({})
-      .toArray((err, documents) => {
-        res.send(documents)
-      })
-  })
-
-
-  app.post('/addAdmin', (req, res) => {
-    const adminEmail = req.body;
-    admins.insertOne(adminEmail)
-      .then(result => {
-        console.log(result)
-      })
-  })
-
-  
-  app.post('/isAdmin', (req, res) => {
-    const userEmail = req.body.email;
-    console.log(userEmail)
-    admins.find({ email: userEmail })
-      .toArray((err, documents) => {
-        res.send(documents.length > 0)
-      })
-
-  })
 });
-
-
-
-
-
-
-
-
-app.listen (process.env.PORT || 5000, () => console.log('server running '))
+app.listen(process.env.PORT || 5000)
